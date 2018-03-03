@@ -47,6 +47,10 @@ namespace OpenHardwareMonitor.Hardware {
       this.identifier = s.ToString();
     }
 
+    public static Identifier FromString(string identifier) {
+      return new Identifier(identifier.Split(Separator));
+    }
+
     public override string ToString() {
       return identifier;
     }
@@ -98,6 +102,68 @@ namespace OpenHardwareMonitor.Hardware {
       else 
         return (id1.CompareTo(id2) > 0);
     }  
+ 
+    public Identifier Concat(params string[] parts) {
+      return new Identifier(this, parts);
+    }
 
+    public void Remove(ISettings settings) {
+      settings.Remove(identifier);
+    }
+
+    public string GetString(ISettings settings) {
+      if (!settings.Contains(identifier)) return null;
+      return settings.GetValue(identifier, "");
+    }
+
+    public void SetString(ISettings settings, string value) {
+      if (value != null) {
+        settings.SetValue(identifier, value);
+      } else {
+        settings.Remove(identifier);
+      }
+    }
+
+    public float? GetFloat(ISettings settings) {
+      if (!settings.Contains(identifier)) return null;
+      float value;
+      if (!float.TryParse(
+        settings.GetValue(identifier, "error"),
+        System.Globalization.NumberStyles.Float, 
+        System.Globalization.CultureInfo.InvariantCulture,
+        out value)) {
+        return null;
+      }
+      return value;
+    }
+
+    public void SetFloat(ISettings settings, float? value) {
+      if (value.HasValue) {
+        SetString(settings, value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+      } else {
+        Remove(settings);
+      }
+    }
+
+    public int? GetInt(ISettings settings) {
+      if (!settings.Contains(identifier)) return null;
+      int value;
+      if (!int.TryParse(
+        settings.GetValue(identifier, "error"),
+        System.Globalization.NumberStyles.Integer,
+        System.Globalization.CultureInfo.InvariantCulture,
+        out value)) {
+        return null;
+      }
+      return value;
+    }
+
+    public void SetInt(ISettings settings, int? value) {
+      if (value.HasValue) {
+        SetString(settings, value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+      } else {
+        Remove(settings);
+      }
+    }
   }
 }
