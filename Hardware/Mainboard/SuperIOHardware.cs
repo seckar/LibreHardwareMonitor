@@ -71,37 +71,15 @@ namespace OpenHardwareMonitor.Hardware.Mainboard {
           Sensor sensor = new Sensor(ctrl.Name, index, SensorType.Control,
             this, settings);
           Control control = new Control(sensor, settings, 0, 100);
-          control.ControlModeChanged += (cc) => {
-            switch (cc.ControlMode) {
-              case ControlMode.Undefined:
-                return;
-              case ControlMode.Default:
-                superIO.SetControl(index, null);
-                break;
-              case ControlMode.Software:
-                superIO.SetControl(index, (byte)(cc.SoftwareValue * 2.55));
-                break;
-              default:
-                return;
+          ControlEventHandler controlChanged = (cc) => {
+            if (cc.DesiredValue == null) {
+              superIO.SetControl(index, null);
+            } else {
+              superIO.SetControl(index, (byte)(cc.SoftwareValue * 2.55));
             }
           };
-          control.SoftwareControlValueChanged += (cc) => {
-            if (cc.ControlMode == ControlMode.Software)
-              superIO.SetControl(index, (byte)(cc.SoftwareValue * 2.55));
-          };
-
-          switch (control.ControlMode) {
-            case ControlMode.Undefined:
-              break;
-            case ControlMode.Default:
-              superIO.SetControl(index, null);
-              break;
-            case ControlMode.Software:
-              superIO.SetControl(index, (byte)(control.SoftwareValue * 2.55));
-              break;
-            default:
-              break;
-          }            
+          control.ControlChanged += controlChanged;
+          controlChanged(control);
 
           sensor.Control = control;
           controls.Add(sensor);

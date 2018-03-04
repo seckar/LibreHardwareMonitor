@@ -733,6 +733,12 @@ namespace OpenHardwareMonitor.GUI {
             defaultItem.Click += delegate(object obj, EventArgs args) {
               control.SetDefault();
             };
+            MenuItem controlledItem = new MenuItem("Automatic");
+            controlledItem.Checked = control.ControlMode == ControlMode.Controlled;
+            controlItem.MenuItems.Add(controlledItem);
+            controlledItem.Click += delegate (object obj, EventArgs args) {
+              control.EnableAutomaticControl();
+            };
             MenuItem manualItem = new MenuItem("Manual");
             controlItem.MenuItems.Add(manualItem);
             manualItem.Checked = control.ControlMode == ControlMode.Software;

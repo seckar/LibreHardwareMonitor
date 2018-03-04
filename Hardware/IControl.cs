@@ -12,8 +12,9 @@ namespace OpenHardwareMonitor.Hardware {
 
   public enum ControlMode {
     Undefined,
-    Software,
-    Default
+    Software,  // explicitly set by the user
+    Default,
+    Controlled,  // set automatically by a fan controller
   }
 
   public interface IControl {
@@ -22,7 +23,10 @@ namespace OpenHardwareMonitor.Hardware {
 
     ControlMode ControlMode { get; }
 
+    float? DesiredValue { get; }
+    
     float SoftwareValue { get; }
+    float? ControlValue { get; }
 
     void SetDefault();
 
@@ -31,5 +35,7 @@ namespace OpenHardwareMonitor.Hardware {
 
     void SetSoftware(float value);
 
+    void EnableAutomaticControl();
+    void SetControlled(float value);
   }
 }

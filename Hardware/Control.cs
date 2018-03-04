@@ -21,12 +21,12 @@ namespace OpenHardwareMonitor.Hardware {
     private readonly ISettings settings;
     private ControlMode mode;
     private float softwareValue;
+    private float? controlValue;  // null when no control decision has been made
     private float minSoftwareValue;
     private float maxSoftwareValue;
 
     public Control(ISensor sensor, ISettings settings, float minSoftwareValue,
-      float maxSoftwareValue) 
-    {
+      float maxSoftwareValue) {
       this.identifier = new Identifier(sensor.Identifier, "control");
       this.settings = settings;
       this.minSoftwareValue = minSoftwareValue;
@@ -35,8 +35,7 @@ namespace OpenHardwareMonitor.Hardware {
       if (!float.TryParse(settings.GetValue(
           new Identifier(identifier, "value").ToString(), "0"),
         NumberStyles.Float, CultureInfo.InvariantCulture,
-        out this.softwareValue)) 
-      {
+        out this.softwareValue)) {
         this.softwareValue = 0;
       }
       int mode;
@@ -44,8 +43,7 @@ namespace OpenHardwareMonitor.Hardware {
           new Identifier(identifier, "mode").ToString(),
           ((int)ControlMode.Undefined).ToString(CultureInfo.InvariantCulture)),
         NumberStyles.Integer, CultureInfo.InvariantCulture,
-        out mode)) 
-      {
+        out mode)) {
         this.mode = ControlMode.Undefined;
       } else {
         this.mode = (ControlMode)mode;
@@ -63,12 +61,23 @@ namespace OpenHardwareMonitor.Hardware {
         return mode;
       }
       private set {
-        if (mode != value) {
-          mode = value;
-          if (ControlModeChanged != null)
-            ControlModeChanged(this);
-          this.settings.SetValue(new Identifier(identifier, "mode").ToString(),
-            ((int)mode).ToString(CultureInfo.InvariantCulture));
+        if (mode == value) return;
+        mode = value;
+        SendEvent();
+        this.settings.SetValue(new Identifier(identifier, "mode").ToString(),
+          ((int)mode).ToString(CultureInfo.InvariantCulture));
+      }
+    }
+
+    public float? DesiredValue {
+      get {
+        switch (ControlMode) {
+          case ControlMode.Software:
+            return SoftwareValue;
+          case ControlMode.Controlled:
+            return ControlValue;
+          default:
+            return null;
         }
       }
     }
@@ -78,14 +87,12 @@ namespace OpenHardwareMonitor.Hardware {
         return softwareValue;
       }
       private set {
-        if (softwareValue != value) {
-          softwareValue = value;
-          if (SoftwareControlValueChanged != null)
-            SoftwareControlValueChanged(this);
-          this.settings.SetValue(new Identifier(identifier,
-            "value").ToString(),
-            value.ToString(CultureInfo.InvariantCulture));
-        }
+        if (softwareValue == value) return;
+        softwareValue = value;
+        if (ControlMode == ControlMode.Software) SendEvent();
+        this.settings.SetValue(new Identifier(identifier,
+          "value").ToString(),
+          value.ToString(CultureInfo.InvariantCulture));
       }
     }
 
@@ -106,11 +113,38 @@ namespace OpenHardwareMonitor.Hardware {
     }
 
     public void SetSoftware(float value) {
-      ControlMode = ControlMode.Software;
       SoftwareValue = value;
+      ControlMode = ControlMode.Software;
     }
 
-    internal event ControlEventHandler ControlModeChanged;
-    internal event ControlEventHandler SoftwareControlValueChanged;
+    public float? ControlValue {
+      get {
+        return controlValue;
+      }
+      private set {
+        if (controlValue == value) return;
+        controlValue = value;
+        if (ControlMode == ControlMode.Controlled) SendEvent();
+      }
+    }
+  
+    public void EnableAutomaticControl() {
+      ControlMode = ControlMode.Controlled;
+    }
+
+    public void SetControlled(float value) {
+      ControlValue = value;
+    }
+
+    private void SendEvent() {
+      if (ControlChanged != null) ControlChanged(this);
+    }
+
+    // This event is triggered when the control is changed, due to either the
+    // control mode changing (e.g. default -> manual control mode), or the
+    // desired control value changing (e.g. due to an automatic fan controller).
+    //
+    // In most cases this event can be handled by simply inspecting DesiredValue.
+    internal event ControlEventHandler ControlChanged;
   }
 }

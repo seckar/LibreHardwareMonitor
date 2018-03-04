@@ -30,6 +30,7 @@ namespace OpenHardwareMonitor.Hardware.Nvidia {
     private readonly Sensor memoryFree;
     private readonly Sensor memoryAvail;
     private readonly Control fanControl;
+    private bool usingDefaultSpeed;
 
     public NvidiaGPU(int adapterIndex, NvPhysicalGpuHandle handle,
       NvDisplayHandle? displayHandle, ISettings settings)
@@ -88,9 +89,8 @@ namespace OpenHardwareMonitor.Hardware.Nvidia {
         fanControl = new Control(control, settings,
           coolerSettings.Cooler[0].DefaultMin, 
           coolerSettings.Cooler[0].DefaultMax);
-        fanControl.ControlModeChanged += ControlModeChanged;
-        fanControl.SoftwareControlValueChanged += SoftwareControlValueChanged;
-        ControlModeChanged(fanControl);
+        fanControl.ControlChanged += ControlChanged;
+        ControlChanged(fanControl);
         control.Control = fanControl;
       }
       Update();
@@ -439,45 +439,35 @@ namespace OpenHardwareMonitor.Hardware.Nvidia {
       return r.ToString();
     }
 
-    private void SoftwareControlValueChanged(IControl control) {
+    private void ControlChanged(IControl control) {
+      if (control.DesiredValue == null) {
+        SetDefaultFanSpeed();
+        return;
+      }
+
+      usingDefaultSpeed = false;
       NvGPUCoolerLevels coolerLevels = new NvGPUCoolerLevels();
       coolerLevels.Version = NVAPI.GPU_COOLER_LEVELS_VER;
       coolerLevels.Levels = new NvLevel[NVAPI.MAX_COOLER_PER_GPU];
-      coolerLevels.Levels[0].Level = (int)control.SoftwareValue;
+      coolerLevels.Levels[0].Level = (int)control.DesiredValue;
       coolerLevels.Levels[0].Policy = 1;
       NVAPI.NvAPI_GPU_SetCoolerLevels(handle, 0, ref coolerLevels);
     }
-
-    private void ControlModeChanged(IControl control) {
-      switch (control.ControlMode) {
-        case ControlMode.Undefined:
-          return;
-        case ControlMode.Default:
-          SetDefaultFanSpeed();
-          break;
-        case ControlMode.Software:
-          SoftwareControlValueChanged(control);
-          break;
-        default:
-          return;
-      }
-    }
-
+    
     private void SetDefaultFanSpeed() {
       NvGPUCoolerLevels coolerLevels = new NvGPUCoolerLevels();
       coolerLevels.Version = NVAPI.GPU_COOLER_LEVELS_VER;
       coolerLevels.Levels = new NvLevel[NVAPI.MAX_COOLER_PER_GPU];
       coolerLevels.Levels[0].Policy = 0x20;
       NVAPI.NvAPI_GPU_SetCoolerLevels(handle, 0, ref coolerLevels);
+      usingDefaultSpeed = true;
     }
 
     public override void Close() {
       if (this.fanControl != null) {
-        this.fanControl.ControlModeChanged -= ControlModeChanged;
-        this.fanControl.SoftwareControlValueChanged -=
-          SoftwareControlValueChanged;
+        this.fanControl.ControlChanged -= ControlChanged;
 
-        if (this.fanControl.ControlMode != ControlMode.Undefined)
+        if (!this.usingDefaultSpeed)
           SetDefaultFanSpeed();
       }
       base.Close();
